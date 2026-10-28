@@ -75,6 +75,11 @@ const UploadForm = () => {
     try {
       const existsCheck = await checkBookExists(data.title);
 
+      if (existsCheck.error) {
+        toast.error("Could not check whether this book exists. Please try again later.");
+        return;
+      }
+
       if (existsCheck.exists && existsCheck.book) {
         toast.info("Book with same title already exists.");
         form.reset();

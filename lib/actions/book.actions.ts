@@ -45,7 +45,7 @@ export const createBook = async (data: CreateBook) => {
 
     return {
       success: false,
-      error: e,
+      error: e instanceof Error ? e.message : String(e),
     };
   }
 };
@@ -86,7 +86,7 @@ export const saveBookSegments = async (
 
     return {
       success: false,
-      error: e,
+      error: e instanceof Error ? e.message : String(e),
     };
   }
 };
@@ -113,7 +113,7 @@ export const checkBookExists = async (title: string) => {
     console.error("Error checking book exists", e);
     return {
       exists: false,
-      error: e,
+      error: e instanceof Error ? e.message : String(e),
     };
   }
 };
