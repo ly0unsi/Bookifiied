@@ -2,7 +2,12 @@
 
 import { useVapi } from "@/hooks/useVapi";
 import { IBook } from "@/types";
-import { LoaderCircle, Mic, MicOff, Send } from "lucide-react";
+import {
+  ArrowUp,
+  LoaderCircle,
+  Mic,
+  MicOff,
+} from "lucide-react";
 import Image from "next/image";
 import Transcript from "@/components/Transcript";
 import { FormEvent, useEffect, useState } from "react";
@@ -96,7 +101,9 @@ const VapiControls = ({ book }: { book: IBook }) => {
             priority
           />
           <div className="vapi-mic-wrapper">
-            {(status === "speaking" || status === "thinking") && (
+            {(status === "listening" ||
+              status === "speaking" ||
+              status === "thinking") && (
               <span
                 className="vapi-pulse-ring animate-ring"
                 aria-hidden="true"
@@ -147,34 +154,57 @@ const VapiControls = ({ book }: { book: IBook }) => {
           currentMessage={isSending ? "Searching the book…" : currentMessage}
           currentUserMessage={currentUserMessage}
         />
-        <form
-          onSubmit={sendMessage}
-          className="flex gap-3 border-t border-[#e8e5df] bg-white p-4 sm:p-5"
-        >
-          <label className="sr-only" htmlFor="book-chat-input">
-            Ask a question about this book
-          </label>
-          <input
-            id="book-chat-input"
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            placeholder="Ask a question about this book…"
-            disabled={isSending}
-            className="min-w-0 flex-1 rounded-xl border border-[#d9d6d0] bg-[#faf9f6] px-4 py-3 text-sm text-[#212a3b] outline-none transition focus:border-[#212a3b] focus:ring-2 focus:ring-[#212a3b]/10 disabled:opacity-60"
-          />
-          <button
-            type="submit"
-            disabled={!chatInput.trim() || isSending}
-            aria-label="Send message"
-            className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#212a3b] text-white transition hover:bg-[#303b52] disabled:cursor-not-allowed disabled:opacity-50"
+        <div className="rounded-b-[14px] bg-[#f3e4c7] p-3 sm:p-4">
+          <form
+            onSubmit={sendMessage}
+            className="flex w-full items-center gap-3 rounded-full border border-[rgba(33,42,59,0.16)] bg-[#fff6e5] px-4 py-2.5 text-[#212a3b] shadow-sm sm:px-5"
           >
-            {isSending ? (
-              <LoaderCircle className="size-5 animate-spin" />
-            ) : (
-              <Send className="size-5" />
-            )}
-          </button>
-        </form>
+            <label className="sr-only" htmlFor="book-chat-input">
+              Ask a question about this book
+            </label>
+            <input
+              id="book-chat-input"
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              placeholder="Ask about this book"
+              disabled={isSending}
+              className="min-w-0 flex-1 bg-transparent py-2 text-sm text-[#212a3b] outline-none placeholder:text-[#6b7280] disabled:opacity-60"
+            />
+            <button
+              type="button"
+              disabled={status === "connecting"}
+              onClick={isActive ? stop : start}
+              aria-label={
+                isActive ? "Turn microphone off" : "Turn microphone on"
+              }
+              className="relative isolate flex size-9 shrink-0 items-center justify-center rounded-full text-[#3d485e] transition hover:bg-[#212a3b]/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {(status === "listening" || status === "speaking") && (
+                <span
+                  className="absolute inset-0 z-0 rounded-full bg-[#212a3b]/20 animate-ring"
+                  aria-hidden="true"
+                />
+              )}
+              {isActive ? (
+                <MicOff className="relative z-10 size-5" aria-hidden="true" />
+              ) : (
+                <Mic className="relative z-10 size-5" aria-hidden="true" />
+              )}
+            </button>
+            <button
+              type="submit"
+              disabled={!chatInput.trim() || isSending}
+              aria-label="Send message"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#212a3b] text-white transition hover:bg-[#3d485e] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSending ? (
+                <LoaderCircle className="size-5 animate-spin" />
+              ) : (
+                <ArrowUp className="size-5" />
+              )}
+            </button>
+          </form>
+        </div>
       </div>
     </>
   );
