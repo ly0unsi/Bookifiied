@@ -447,7 +447,7 @@
   }
 
   .vapi-transcript-wrapper {
-    @apply min-h-[400px] max-h-[60vh] flex flex-col;
+    @apply h-[480px] flex flex-col;
   }
 
   .vapi-cover-wrapper {
@@ -686,7 +686,7 @@
      TRANSCRIPT COMPONENT
      =========================================== */
   .transcript-container {
-    @apply w-full bg-white rounded-[14px] h-full min-h-0 flex flex-col;
+    @apply w-full bg-white rounded-[14px] flex-1 min-h-0 flex flex-col;
   }
 
   .transcript-messages {

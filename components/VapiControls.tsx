@@ -102,31 +102,6 @@ const VapiControls = ({ book }: { book: IBook }) => {
             className="vapi-cover-image h-45! w-30!"
             priority
           />
-          <div className="vapi-mic-wrapper">
-            {(status === "listening" ||
-              status === "speaking" ||
-              status === "thinking") && (
-              <span
-                className="vapi-pulse-ring animate-ring"
-                aria-hidden="true"
-              />
-            )}
-            <button
-              type="button"
-              disabled={status === "connecting"}
-              onClick={isActive ? stop : start}
-              className={`vapi-mic-btn ${isActive ? "vapi-mic-btn-active" : "vapi-mic-btn-inactive"} shadow-md`}
-              aria-label={
-                isActive ? "Turn microphone off" : "Turn microphone on"
-              }
-            >
-              {isActive ? (
-                <Mic className="size-5 text-white" aria-hidden="true" />
-              ) : (
-                <MicOff className="size-5 text-[#212a3b]" aria-hidden="true" />
-              )}
-            </button>
-          </div>
         </div>
 
         <div className="min-w-0 flex-1 text-center sm:text-left">
