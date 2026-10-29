@@ -79,6 +79,7 @@ export const useVapi = (book: IBook) => {
   const startTimerRef = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const isStoppingRef = useRef<boolean>(false);
+  const closeSessionRef = useRef<(() => void) | null>(null);
 
   const bookRef = useLatestRef(book);
   const durationRef = useLatestRef(duration);
@@ -116,6 +117,7 @@ export const useVapi = (book: IBook) => {
         });
       }
     };
+    closeSessionRef.current = closeSession;
 
     const handleCallStart = () => {
       setStatus("listening");
@@ -234,6 +236,7 @@ export const useVapi = (book: IBook) => {
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
 
     return () => {
+      closeSessionRef.current = null;
       client.removeListener("call-start", handleCallStart);
       client.removeListener("call-end", handleCallEnd);
       client.removeListener("speech-start", handleSpeechStart);
@@ -311,8 +314,9 @@ export const useVapi = (book: IBook) => {
       await getVapi().stop();
     } catch (e) {
       console.error("Error stopping call", e);
+    } finally {
+      closeSessionRef.current?.();
       isStoppingRef.current = false;
-      setStatus("idle");
     }
   };
   const clearErrors = async () => {};
