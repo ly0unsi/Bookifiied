@@ -1,0 +1,33 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    id: "/",
+    name: "Bookified",
+    short_name: "Bookified",
+    description: "Read and have conversations about your books with Bookified.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#f8f4e9",
+    theme_color: "#f8f4e9",
+    categories: ["books", "education"],
+    icons: [
+      {
+        src: "/icons/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        src: "/icons/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
+        src: "/icons/icon-512-maskable.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+  };
+}
