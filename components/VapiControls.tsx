@@ -19,7 +19,9 @@ const VapiControls = ({ book }: { book: IBook }) => {
     currentUserMessage,
     limitError,
   } = useVapi(book);
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
 
@@ -33,7 +35,10 @@ const VapiControls = ({ book }: { book: IBook }) => {
     if (!query || isSending) return;
 
     setChatInput("");
-    setChatMessages((previous) => [...previous, { role: "user", content: query }]);
+    setChatMessages((previous) => [
+      ...previous,
+      { role: "user", content: query },
+    ]);
     setIsSending(true);
 
     try {
@@ -47,7 +52,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
                 id: crypto.randomUUID(),
                 function: {
                   name: "search book",
-                  arguments: { bookId: book._id, query },
+                  arguments: { bookId: book._id, query, synthesize: true },
                 },
               },
             ],
@@ -59,12 +64,18 @@ const VapiControls = ({ book }: { book: IBook }) => {
       if (!response.ok || typeof result !== "string") {
         throw new Error("Could not get an answer. Please try again.");
       }
-      setChatMessages((previous) => [...previous, { role: "assistant", content: result }]);
+      setChatMessages((previous) => [
+        ...previous,
+        { role: "assistant", content: result },
+      ]);
     } catch (error) {
       console.error("Book chat error", error);
       setChatMessages((previous) => [
         ...previous,
-        { role: "assistant", content: "Could not get an answer. Please try again." },
+        {
+          role: "assistant",
+          content: "Could not get an answer. Please try again.",
+        },
       ]);
     } finally {
       setIsSending(false);
@@ -136,8 +147,13 @@ const VapiControls = ({ book }: { book: IBook }) => {
           currentMessage={isSending ? "Searching the book…" : currentMessage}
           currentUserMessage={currentUserMessage}
         />
-        <form onSubmit={sendMessage} className="flex gap-3 border-t border-[#e8e5df] bg-white p-4 sm:p-5">
-          <label className="sr-only" htmlFor="book-chat-input">Ask a question about this book</label>
+        <form
+          onSubmit={sendMessage}
+          className="flex gap-3 border-t border-[#e8e5df] bg-white p-4 sm:p-5"
+        >
+          <label className="sr-only" htmlFor="book-chat-input">
+            Ask a question about this book
+          </label>
           <input
             id="book-chat-input"
             value={chatInput}
@@ -152,7 +168,11 @@ const VapiControls = ({ book }: { book: IBook }) => {
             aria-label="Send message"
             className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#212a3b] text-white transition hover:bg-[#303b52] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSending ? <LoaderCircle className="size-5 animate-spin" /> : <Send className="size-5" />}
+            {isSending ? (
+              <LoaderCircle className="size-5 animate-spin" />
+            ) : (
+              <Send className="size-5" />
+            )}
           </button>
         </form>
       </div>
