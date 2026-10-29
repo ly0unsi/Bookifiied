@@ -183,20 +183,11 @@ export const useVapi = (book: IBook) => {
       console.log("msg2", event?.error);
 
       const nestedError = event?.error;
-      const detail = [
-        event?.message,
-        nestedError?.message,
-        typeof nestedError === "string" ? nestedError : undefined,
-        event?.cause?.message,
-        typeof event === "string" ? event : undefined,
-      ]
-        .filter((value): value is string => typeof value === "string")
-        .join(" ");
-      const errorDetail = detail || "Unknown Vapi error";
-      const meetingEnded = /meeting has ended|ejection/i.test(errorDetail);
+
+      const meetingEnded = nestedError.type == "ejected";
 
       if (meetingEnded) {
-        console.warn("Vapi call ended", errorDetail, event);
+        console.warn("Vapi call ended");
         setLimitError("The voice call ended. You can start a new call.");
       } else {
         console.error("Vapi call error", event);
