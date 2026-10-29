@@ -87,14 +87,14 @@ const VapiControls = ({ book }: { book: IBook }) => {
 
   return (
     <>
-      <section className="vapi-header-card w-full">
+      <section className="vapi-header-card w-full flex-col items-center gap-4 p-4 text-center sm:flex-row sm:gap-6 sm:p-6 sm:text-left">
         <div className="vapi-cover-wrapper">
           <Image
             src={book.coverURL}
             alt={`${book.title} cover`}
             width={120}
             height={180}
-            className="vapi-cover-image h-45! w-30!"
+            className="vapi-cover-image h-40! w-28! sm:h-45! sm:w-30!"
             priority
           />
         </div>
