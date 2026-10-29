@@ -23,6 +23,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
     currentMessage,
     currentUserMessage,
     limitError,
+    sendTextMessage,
   } = useVapi(book);
   const [chatMessages, setChatMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
@@ -38,6 +39,23 @@ const VapiControls = ({ book }: { book: IBook }) => {
     event.preventDefault();
     const query = chatInput.trim();
     if (!query || isSending) return;
+
+    if (isActive) {
+      try {
+        if (sendTextMessage(query)) {
+          setChatInput("");
+          setChatMessages((previous) => [
+            ...previous,
+            { role: "user", content: query },
+          ]);
+          return;
+        }
+      } catch (error) {
+        console.error("Could not send text to Vapi", error);
+        toast.error("Could not send your message to the voice conversation.");
+        return;
+      }
+    }
 
     setChatInput("");
     setChatMessages((previous) => [

@@ -319,6 +319,15 @@ export const useVapi = (book: IBook) => {
       isStoppingRef.current = false;
     }
   };
+  const sendTextMessage = (content: string) => {
+    if (!isActive) return false;
+
+    getVapi().send({
+      type: "add-message",
+      message: { role: "user", content },
+    });
+    return true;
+  };
   const clearErrors = async () => {};
 
   return {
@@ -331,6 +340,7 @@ export const useVapi = (book: IBook) => {
     limitError,
     start,
     stop,
+    sendTextMessage,
     clearErrors,
     // maxDurationSeconds, remainingSeconds, showTimeWarning
   };
