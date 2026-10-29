@@ -182,7 +182,7 @@ export const useVapi = (book: IBook) => {
       console.log("msg1", event?.message);
       console.log("msg2", event?.error);
 
-      const nestedError = event?.error;
+      const nestedError = event?.error?.error;
 
       const meetingEnded = nestedError.type == "ejected";
 
