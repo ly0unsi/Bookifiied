@@ -144,6 +144,34 @@ export const saveBookSegments = async (
   }
 };
 
+export const searchBookSegments = async (
+  bookId: string,
+  query: string,
+  limit: number,
+) => {
+  try {
+    await connectToDatabase();
+
+    const segments = await BookSegment.find(
+      { bookId, $text: { $search: query } },
+      { score: { $meta: "textScore" } },
+    )
+      .sort({ score: { $meta: "textScore" } })
+      .limit(limit)
+      .select({ content: 1, segmentIndex: 1, pageNumber: 1, _id: 0 })
+      .lean();
+
+    return { success: true, data: segments };
+  } catch (e) {
+    console.error("Error searching book segments", e);
+    return {
+      success: false,
+      data: [],
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+};
+
 export const checkBookExists = async (title: string) => {
   try {
     await connectToDatabase();
