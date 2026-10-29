@@ -24,10 +24,8 @@ const VapiControls = ({ book }: { book: IBook }) => {
     currentUserMessage,
     limitError,
     sendTextMessage,
+    appendMessage,
   } = useVapi(book);
-  const [chatMessages, setChatMessages] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([]);
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
 
@@ -44,10 +42,6 @@ const VapiControls = ({ book }: { book: IBook }) => {
       try {
         if (sendTextMessage(query)) {
           setChatInput("");
-          setChatMessages((previous) => [
-            ...previous,
-            { role: "user", content: query },
-          ]);
           return;
         }
       } catch (error) {
@@ -58,10 +52,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
     }
 
     setChatInput("");
-    setChatMessages((previous) => [
-      ...previous,
-      { role: "user", content: query },
-    ]);
+    appendMessage({ role: "user", content: query });
     setIsSending(true);
 
     try {
@@ -87,25 +78,18 @@ const VapiControls = ({ book }: { book: IBook }) => {
       if (!response.ok || typeof result !== "string") {
         throw new Error("Could not get an answer. Please try again.");
       }
-      setChatMessages((previous) => [
-        ...previous,
-        { role: "assistant", content: result },
-      ]);
+      appendMessage({ role: "assistant", content: result });
     } catch (error) {
       console.error("Book chat error", error);
-      setChatMessages((previous) => [
-        ...previous,
-        {
-          role: "assistant",
-          content: "Could not get an answer. Please try again.",
-        },
-      ]);
+      appendMessage({
+        role: "assistant",
+        content: "Could not get an answer. Please try again.",
+      });
     } finally {
       setIsSending(false);
     }
   };
 
-  const transcriptMessages = [...messages, ...chatMessages];
   return (
     <>
       <section className="vapi-header-card w-full">
@@ -168,7 +152,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
       </section>
       <div className="vapi-transcript-wrapper w-full">
         <Transcript
-          messages={transcriptMessages}
+          messages={messages}
           currentMessage={isSending ? "Searching the book…" : currentMessage}
           currentUserMessage={currentUserMessage}
         />

@@ -326,7 +326,11 @@ export const useVapi = (book: IBook) => {
       type: "add-message",
       message: { role: "user", content },
     });
+    setMessages((previous) => [...previous, { role: "user", content }]);
     return true;
+  };
+  const appendMessage = (message: Messages) => {
+    setMessages((previous) => [...previous, message]);
   };
   const clearErrors = async () => {};
 
@@ -341,6 +345,7 @@ export const useVapi = (book: IBook) => {
     start,
     stop,
     sendTextMessage,
+    appendMessage,
     clearErrors,
     // maxDurationSeconds, remainingSeconds, showTimeWarning
   };
