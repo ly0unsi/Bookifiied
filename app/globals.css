@@ -468,11 +468,33 @@
   }
 
   .vapi-pulse-ring {
-    @apply absolute inset-0 w-[50px] h-[50px] sm:w-[60px] sm:h-[60px] bg-white rounded-full opacity-50 animate-ping;
+    @apply absolute inset-0 z-0 w-[50px] h-[50px] sm:w-[60px] sm:h-[60px] bg-white rounded-full opacity-50;
+  }
+
+  .animate-ring {
+    animation: mic-ring-pulse 1.5s ease-out infinite;
+  }
+
+  @keyframes mic-ring-pulse {
+    0% {
+      transform: scale(0.9);
+      opacity: 0.55;
+    }
+
+    100% {
+      transform: scale(1.65);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-ring {
+      animation: none;
+    }
   }
 
   .vapi-mic-btn {
-    @apply relative w-[50px] h-[50px] sm:w-[60px] sm:h-[60px] cursor-pointer rounded-full flex items-center justify-center transition-all duration-300 border-0 bg-white;
+    @apply relative z-10 w-[50px] h-[50px] sm:w-[60px] sm:h-[60px] cursor-pointer rounded-full flex items-center justify-center transition-all duration-300 border-0 bg-white;
 
     &:hover {
       transform: scale(1.05);

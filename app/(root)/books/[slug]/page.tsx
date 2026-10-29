@@ -1,38 +1,67 @@
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
+import { ArrowLeft, Mic, MicOff } from "lucide-react";
+import { Suspense } from "react";
+import { connection } from "next/server";
 
-import { sampleBooks } from "@/lib/constants";
+import { getBookBySlug } from "@/lib/actions/book.actions";
+import { Skeleton } from "@/components/ui/skeleton";
+import VapiControls from "@/components/VapiControls";
 
-export function generateStaticParams() {
-  return sampleBooks.map(({ slug }) => ({ slug }));
-}
+type BookPageProps = PageProps<"/books/[slug]">;
+type BookDetailsProps = Pick<BookPageProps, "params">;
 
-export default async function BookPage(
-  props: PageProps<"/books/[slug]">,
-) {
-  const { slug } = await props.params;
-  const book = sampleBooks.find((item) => item.slug === slug);
+async function BookDetails({ params }: BookDetailsProps) {
+  await connection();
 
-  if (!book) {
-    notFound();
-  }
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const { slug } = await params;
+  const result = await getBookBySlug(slug);
+
+  if (!result.success || !result.data) redirect("/");
+
+  const book = result.data;
 
   return (
-    <main className="wrapper container">
-      <article className="flex flex-col gap-6 md:flex-row md:items-start">
-        <Image
-          src={book.coverURL}
-          alt={book.title}
-          width={266}
-          height={400}
-          className="book-card-cover"
-        />
-        <div>
-          <p className="subtitle">Interactive book</p>
-          <h1 className="page-title-xl">{book.title}</h1>
-          <p className="subtitle">by {book.author}</p>
-        </div>
-      </article>
+    <main className="book-page-container">
+      <div className="vapi-main-container gap-6">
+        <VapiControls book={book} />
+      </div>
+
+      <Link href="/" className="back-btn-floating" aria-label="Back to library">
+        <ArrowLeft className="size-5" aria-hidden="true" />
+      </Link>
     </main>
   );
 }
+
+function BookDetailsSkeleton() {
+  return (
+    <main className="book-page-container">
+      <div className="vapi-main-container gap-6">
+        <section className="vapi-header-card w-full">
+          <Skeleton className="h-[180px] w-[120px] shrink-0 rounded-lg" />
+          <div className="flex-1 space-y-3">
+            <Skeleton className="mx-auto h-8 w-2/3 sm:mx-0" />
+            <Skeleton className="mx-auto h-5 w-1/3 sm:mx-0" />
+            <Skeleton className="h-9 w-full max-w-[320px]" />
+          </div>
+        </section>
+        <section className="transcript-container min-h-[400px] w-full" />
+      </div>
+    </main>
+  );
+}
+
+export default function BookPage(props: BookPageProps) {
+  return (
+    <Suspense fallback={<BookDetailsSkeleton />}>
+      <BookDetails params={props.params} />
+    </Suspense>
+  );
+}
+
