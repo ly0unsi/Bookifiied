@@ -34,7 +34,7 @@ async function BookDetails({ params }: BookDetailsProps) {
 
       <Link
         href="/"
-        className="back-btn-floating hidden md:flex"
+        className="back-btn-floating hidden! md:flex"
         aria-label="Back to library"
       >
         <ArrowLeft className="size-5" aria-hidden="true" />
