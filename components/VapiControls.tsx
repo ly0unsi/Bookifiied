@@ -17,12 +17,16 @@ const VapiControls = ({ book }: { book: IBook }) => {
     messages,
     currentMessage,
     currentUserMessage,
+    duration,
+    maxDurationMinutes,
     limitError,
     sendTextMessage,
     appendMessage,
   } = useVapi(book);
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const durationLabel = `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`;
+  const maxDurationLabel = `${maxDurationMinutes}:00`;
 
   useEffect(() => {
     if (limitError) toast.error(limitError);
@@ -115,7 +119,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
               Voice: {book.persona || "Default"}
             </span>
             <span className="vapi-badge-ai vapi-badge-ai-text tabular-nums">
-              0:00/15:00
+              {durationLabel}/{maxDurationLabel}
             </span>
           </div>
         </div>

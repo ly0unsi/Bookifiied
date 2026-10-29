@@ -76,7 +76,9 @@ const UploadForm = () => {
       const existsCheck = await checkBookExists(data.title);
 
       if (existsCheck.error) {
-        toast.error("Could not check whether this book exists. Please try again later.");
+        toast.error(
+          "Could not check whether this book exists. Please try again later.",
+        );
         return;
       }
 
@@ -144,9 +146,9 @@ const UploadForm = () => {
 
       if (!book.success) {
         toast.error((book.error as string) || "Failed to create book");
-        // if (book.isBillingError) {
-        //   router.push("/subscriptions");
-        // }
+        if (book.isBillingError) {
+          router.push("/subscriptions");
+        }
         return;
       }
 

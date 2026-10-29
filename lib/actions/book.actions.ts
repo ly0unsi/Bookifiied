@@ -5,6 +5,9 @@ import { connectToDatabase } from "@/database/mongoose";
 import { escapeRegex, generateSlug, serializeData } from "@/lib/utils";
 import Book from "@/database/models/book.model";
 import BookSegment from "@/database/models/book-segment.model";
+import { PLANS } from "@/lib/subscription-constants";
+import { getPlanFromHas } from "@/lib/subscription-utils";
+import { auth } from "@clerk/nextjs/server";
 
 export const getAllBooks = async () => {
   try {
@@ -61,6 +64,12 @@ export const getBookBySlug = async (slug: string) => {
 
 export const createBook = async (data: CreateBook) => {
   try {
+    const { userId, has } = await auth();
+
+    if (!userId || userId !== data.clerkId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
     await connectToDatabase();
 
     const slug = generateSlug(data.title);
@@ -75,11 +84,16 @@ export const createBook = async (data: CreateBook) => {
       };
     }
 
-    const { auth } = await import("@clerk/nextjs/server");
-    const { userId } = await auth();
+    const plan = getPlanFromHas(has);
+    const bookCount = await Book.countDocuments({ clerkId: userId });
+    const bookLimit = PLANS[plan].maxBooks;
 
-    if (!userId || userId !== data.clerkId) {
-      return { success: false, error: "Unauthorized" };
+    if (bookCount >= bookLimit) {
+      return {
+        success: false,
+        error: `Your ${plan} plan allows up to ${bookLimit} books. Upgrade your plan to add more.`,
+        isBillingError: true,
+      };
     }
 
     const book = await Book.create({

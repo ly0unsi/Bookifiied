@@ -4,10 +4,12 @@ import { connectToDatabase } from "@/database/mongoose";
 import VoiceSession from "@/database/models/voice-session.model";
 import { auth } from "@clerk/nextjs/server";
 import type { EndSessionResult, StartSessionResult } from "@/types";
+import { PLANS } from "@/lib/subscription-constants";
+import { getPlanFromHas } from "@/lib/subscription-utils";
 
 const getCurrentBillingPeriodStart = () => {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 };
 
 export const startVoiceSession = async (
@@ -15,22 +17,44 @@ export const startVoiceSession = async (
   bookId: string,
 ): Promise<StartSessionResult> => {
   try {
+    const { userId, has } = await auth();
+    if (!userId || userId !== clerkId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
     await connectToDatabase();
 
-    // Limits/Plan to see whether a session is allowed.
+    const plan = getPlanFromHas(has);
+    const planLimits = PLANS[plan];
+    const billingPeriodStart = getCurrentBillingPeriodStart();
+    const currentCount = await VoiceSession.countDocuments({
+      clerkId: userId,
+      billingPeriodStart,
+    });
+
+    if (
+      planLimits.maxSessionsPerMonth !== null &&
+      currentCount >= planLimits.maxSessionsPerMonth
+    ) {
+      return {
+        success: false,
+        error: `Your ${plan} plan's monthly session limit has been reached. Upgrade your plan to continue.`,
+        isBillingError: true,
+      };
+    }
 
     const session = await VoiceSession.create({
-      clerkId,
+      clerkId: userId,
       bookId,
       startedAt: new Date(),
-      billingPeriodStart: getCurrentBillingPeriodStart(),
+      billingPeriodStart,
       durationSeconds: 0,
     });
 
     return {
       success: true,
       sessionId: session._id.toString(),
-      // maxDurationMinutes: check.maxDurationMinutes,
+      maxDurationMinutes: planLimits.maxSessionMinutes,
     };
   } catch (e) {
     console.error("Error starting voice session", e);

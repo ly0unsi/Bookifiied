@@ -923,6 +923,11 @@
   flex: 1 !important;
 }
 
+.cl-pricingTableCardFeatures {
+  min-height: 10rem !important;
+  box-sizing: border-box !important;
+}
+
 /* Clerk Auth Input Fields with Soft Shadow */
 .cl-formFieldInput__identifier,
 .cl-formFieldInput__password,
@@ -1026,6 +1031,7 @@ button[class*='cl-formButtonPrimary'],
 button[class*='cl-formButtonPrimary'] * {
   color: white !important;
 }
+
 
 /* Ensure segmented controls, tabs, and other light buttons have dark text */
 .cl-segmentedControlButton,

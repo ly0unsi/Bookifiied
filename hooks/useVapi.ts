@@ -13,7 +13,6 @@ import { log } from "console";
 const VAPI_API_KEY = process.env.NEXT_PUBLIC_VAPI_API_KEY;
 const TIMER_INTERVAL_MS = 1000;
 const SECONDS_PER_MINUTE = 60;
-const TIME_WARNING_THRESHOLD = 60; // Show warning when this many seconds remain
 
 let vapi: InstanceType<typeof Vapi>;
 function getVapi() {
@@ -73,6 +72,7 @@ export const useVapi = (book: IBook) => {
   const [currentMessage, setCurrentMessage] = useState("");
   const [currentUserMessage, setCurrentUserMessage] = useState("");
   const [duration, setDuration] = useState(0);
+  const [maxDurationMinutes, setMaxDurationMinutes] = useState(5);
   const [limitError, setLimitError] = useState<string | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -80,9 +80,10 @@ export const useVapi = (book: IBook) => {
   const sessionIdRef = useRef<string | null>(null);
   const isStoppingRef = useRef<boolean>(false);
   const closeSessionRef = useRef<(() => void) | null>(null);
+  const elapsedSecondsRef = useRef(0);
 
   const bookRef = useLatestRef(book);
-  const durationRef = useLatestRef(duration);
+  const maxDurationSecondsRef = useRef<number | null>(null);
   const voice = book.persona || DEFAULT_VOICE;
 
   useEffect(() => {
@@ -111,6 +112,7 @@ export const useVapi = (book: IBook) => {
 
       const sessionId = sessionIdRef.current;
       sessionIdRef.current = null;
+      maxDurationSecondsRef.current = null;
       if (sessionId) {
         void endVoiceSession(sessionId).catch((error) => {
           console.error("Error closing voice session", error);
@@ -122,6 +124,26 @@ export const useVapi = (book: IBook) => {
     const handleCallStart = () => {
       setStatus("listening");
       setLimitError(null);
+      if (!timerRef.current && maxDurationSecondsRef.current !== null) {
+        timerRef.current = setInterval(() => {
+          const elapsedSeconds = elapsedSecondsRef.current + 1;
+          elapsedSecondsRef.current = elapsedSeconds;
+          setDuration(elapsedSeconds);
+
+          const maxDurationSeconds = maxDurationSecondsRef.current;
+          if (
+            maxDurationSeconds !== null &&
+            elapsedSeconds >= maxDurationSeconds
+          ) {
+            setLimitError("Your session time limit has been reached.");
+            void client
+              .stop()
+              .catch((error) =>
+                console.error("Error stopping voice session at time limit", error),
+              );
+          }
+        }, TIMER_INTERVAL_MS);
+      }
     };
 
     const handleCallEnd = () => {
@@ -259,6 +281,8 @@ export const useVapi = (book: IBook) => {
 
     setLimitError(null);
     setStatus("connecting");
+    elapsedSecondsRef.current = 0;
+    setDuration(0);
 
     try {
       const result = await startVoiceSession(userId, book._id);
@@ -272,6 +296,9 @@ export const useVapi = (book: IBook) => {
       }
 
       sessionIdRef.current = result.sessionId || null;
+      const sessionLimitMinutes = result.maxDurationMinutes ?? 5;
+      setMaxDurationMinutes(sessionLimitMinutes);
+      maxDurationSecondsRef.current = sessionLimitMinutes * SECONDS_PER_MINUTE;
       const firstMessage = `Hey, good to meet you. Quick question before we dive in - have you actually read ${book.title} yet, or are we starting fresh?`;
       await getVapi().start(ASSISTANT_ID, {
         firstMessage,
@@ -332,6 +359,7 @@ export const useVapi = (book: IBook) => {
     currentMessage,
     currentUserMessage,
     duration,
+    maxDurationMinutes,
     limitError,
     start,
     stop,
