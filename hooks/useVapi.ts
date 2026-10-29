@@ -177,6 +177,9 @@ export const useVapi = (book: IBook) => {
     };
 
     const handleError = (event: any) => {
+      console.log("msg1", event?.message);
+      console.log("msg2", event?.error);
+
       const nestedError = event?.error;
       const detail = [
         event?.message,
