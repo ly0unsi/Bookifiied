@@ -2,12 +2,7 @@
 
 import { useVapi } from "@/hooks/useVapi";
 import { IBook } from "@/types";
-import {
-  ArrowUp,
-  LoaderCircle,
-  Mic,
-  MicOff,
-} from "lucide-react";
+import { ArrowUp, LoaderCircle, Mic, MicOff } from "lucide-react";
 import Image from "next/image";
 import Transcript from "@/components/Transcript";
 import { FormEvent, useEffect, useState } from "react";
@@ -128,8 +123,9 @@ const VapiControls = ({ book }: { book: IBook }) => {
       <div className="vapi-transcript-wrapper w-full">
         <Transcript
           messages={messages}
-          currentMessage={isSending ? "Searching the book…" : currentMessage}
+          currentMessage={currentMessage}
           currentUserMessage={currentUserMessage}
+          isThinking={isSending}
         />
         <div className="rounded-b-[14px] bg-[#f3e4c7] p-3 sm:p-4">
           <form
