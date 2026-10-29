@@ -32,7 +32,11 @@ async function BookDetails({ params }: BookDetailsProps) {
         <VapiControls book={book} />
       </div>
 
-      <Link href="/" className="back-btn-floating" aria-label="Back to library">
+      <Link
+        href="/"
+        className="back-btn-floating hidden md:flex"
+        aria-label="Back to library"
+      >
         <ArrowLeft className="size-5" aria-hidden="true" />
       </Link>
     </main>
