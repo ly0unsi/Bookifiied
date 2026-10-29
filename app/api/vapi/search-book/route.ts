@@ -3,13 +3,16 @@ import { searchBookSegments } from "@/lib/actions/book.actions";
 
 const NO_MATCHES = "no information found about this topic";
 
-async function generateAnswer(query: string, passages: string): Promise<string> {
+async function generateAnswer(
+  query: string,
+  passages: string,
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const requestBody = JSON.stringify({
     systemInstruction: {
@@ -65,14 +68,23 @@ async function generateAnswer(query: string, passages: string): Promise<string> 
   }
 
   if (!response?.ok) {
-    const details = response ? await response.text() : "No response from Gemini API.";
-    console.error("Gemini generateContent API error:", response?.status, details);
+    const details = response
+      ? await response.text()
+      : "No response from Gemini API.";
+    console.error(
+      "Gemini generateContent API error:",
+      response?.status,
+      details,
+    );
     throw new Error("AI answer generation failed.");
   }
 
   const payload = await response.json();
   const answer = payload.candidates
-    ?.flatMap((candidate: { content?: { parts?: { text?: string }[] } }) => candidate.content?.parts ?? [])
+    ?.flatMap(
+      (candidate: { content?: { parts?: { text?: string }[] } }) =>
+        candidate.content?.parts ?? [],
+    )
     .map((part: { text?: string }) => part.text ?? "")
     .join("");
 
@@ -101,7 +113,10 @@ function parseArguments(value: unknown): Record<string, unknown> {
 }
 
 function isSearchBookCall(name: unknown): boolean {
-  return typeof name === "string" && name.toLowerCase().replace(/[\s_-]/g, "") === "searchbook";
+  return (
+    typeof name === "string" &&
+    name.toLowerCase().replace(/[\s_-]/g, "") === "searchbook"
+  );
 }
 
 async function runSearch(parameters: unknown): Promise<{ result: string }> {
@@ -109,18 +124,30 @@ async function runSearch(parameters: unknown): Promise<{ result: string }> {
   const bookId = args.bookId ?? args.book_id;
   const query = args.query;
 
-  if (bookId == null || query == null || !String(bookId).trim() || !String(query).trim()) {
+  if (
+    bookId == null ||
+    query == null ||
+    !String(bookId).trim() ||
+    !String(query).trim()
+  ) {
     return { result: "Missing bookId or query." };
   }
 
-  const search = await searchBookSegments(String(bookId), String(query).trim(), 3);
+  const search = await searchBookSegments(
+    String(bookId),
+    String(query).trim(),
+    3,
+  );
   if (!search.success || !search.data?.length) {
     return { result: NO_MATCHES };
   }
 
   const passages = search.data
     .map((segment) => segment.content)
-    .filter((content): content is string => typeof content === "string" && content.length > 0)
+    .filter(
+      (content): content is string =>
+        typeof content === "string" && content.length > 0,
+    )
     .join("\n\n");
 
   if (!passages) return { result: NO_MATCHES };
@@ -142,7 +169,9 @@ export async function POST(request: Request) {
     if (functionCall) {
       const name = functionCall.name ?? functionCall.function?.name;
       if (!isSearchBookCall(name)) {
-        return NextResponse.json({ result: `Unknown function: ${String(name ?? "")}` });
+        return NextResponse.json({
+          result: `Unknown function: ${String(name ?? "")}`,
+        });
       }
 
       return NextResponse.json(
@@ -150,9 +179,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const toolCalls = message?.toolCallList ?? message?.toolCalls ?? body?.toolCallList ?? body?.toolCalls;
+    const toolCalls =
+      message?.toolCallList ??
+      message?.toolCalls ??
+      body?.toolCallList ??
+      body?.toolCalls;
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
-      return NextResponse.json({ results: [{ result: "No tool calls found." }] });
+      return NextResponse.json({
+        results: [{ result: "No tool calls found." }],
+      });
     }
 
     const results = await Promise.all(
@@ -162,7 +197,10 @@ export async function POST(request: Request) {
         const toolCallId = toolCall.id ?? toolCall.toolCallId;
 
         if (!isSearchBookCall(name)) {
-          return { ...(toolCallId ? { toolCallId } : {}), result: `Unknown function: ${String(name ?? "")}` };
+          return {
+            ...(toolCallId ? { toolCallId } : {}),
+            result: `Unknown function: ${String(name ?? "")}`,
+          };
         }
 
         return {
@@ -181,3 +219,4 @@ export async function POST(request: Request) {
     );
   }
 }
+
