@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Mic, Sparkles } from "lucide-react";
+import { Mic } from "lucide-react";
 
 type TranscriptMessage = {
   role: string;
   content: string;
+  citations?: number[];
 };
 
 type TranscriptProps = {
   messages: TranscriptMessage[];
+  pdfUrl: string;
   currentMessage: string;
   currentUserMessage: string;
   isThinking?: boolean;
@@ -17,6 +19,7 @@ type TranscriptProps = {
 
 const Transcript = ({
   messages,
+  pdfUrl,
   currentMessage,
   currentUserMessage,
   isThinking = false,
@@ -78,12 +81,12 @@ const Transcript = ({
             <div
               className={`transcript-message ${
                 isAssistant
-                  ? "transcript-message-assistant"
+                  ? "transcript-message-assistant flex flex-col items-start gap-2"
                   : "transcript-message-user"
               }`}
               key={`${message.role}-${index}`}
             >
-              <p
+              <div
                 className={`transcript-bubble ${
                   isAssistant
                     ? "transcript-bubble-assistant"
@@ -111,7 +114,33 @@ const Transcript = ({
                 {message.streaming && !message.thinking && (
                   <span className="transcript-cursor" aria-hidden="true" />
                 )}
-              </p>
+              </div>
+              {isAssistant &&
+                message.citations &&
+                message.citations.length > 0 && (
+                  <div
+                    className="flex flex-wrap gap-2 self-start"
+                    aria-label="Citations"
+                  >
+                    {message.citations.map((pageNumber) => {
+                      const pdfPageUrl = new URL(pdfUrl);
+                      pdfPageUrl.hash = `page=${pageNumber}`;
+
+                      return (
+                        <a
+                          key={pageNumber}
+                          href={pdfPageUrl.toString()}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-full border border-[#663820]/20 bg-[#fff6e5] px-2.5 py-1 text-xs font-semibold text-[#663820] transition hover:bg-[#f3e4c7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#663820]"
+                          aria-label={`Open PDF to page ${pageNumber}`}
+                        >
+                          p. {pageNumber}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
             </div>
           );
         })}
@@ -122,4 +151,3 @@ const Transcript = ({
 };
 
 export default Transcript;
-

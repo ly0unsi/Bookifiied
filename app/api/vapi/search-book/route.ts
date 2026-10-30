@@ -124,7 +124,9 @@ function isSearchBookCall(name: unknown): boolean {
   );
 }
 
-async function runSearch(parameters: unknown): Promise<{ result: string }> {
+async function runSearch(
+  parameters: unknown,
+): Promise<{ result: string; citations?: number[] }> {
   const args = parseArguments(parameters);
   const bookId = args.bookId ?? args.book_id;
   const query = args.query;
@@ -157,11 +159,24 @@ async function runSearch(parameters: unknown): Promise<{ result: string }> {
 
   if (!passages) return { result: NO_MATCHES };
 
+  const citations = [
+    ...new Set(
+      search.data
+        .map((segment) => segment.pageNumber)
+        .filter(
+          (pageNumber): pageNumber is number =>
+            Number.isInteger(pageNumber) && pageNumber > 0,
+        ),
+    ),
+  ];
+  const result =
+    args.synthesize === true
+      ? await generateAnswer(String(query).trim(), passages)
+      : passages;
+
   return {
-    result:
-      args.synthesize === true
-        ? await generateAnswer(String(query).trim(), passages)
-        : passages,
+    result,
+    ...(args.includeCitations === true ? { citations } : {}),
   };
 }
 
@@ -224,4 +239,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

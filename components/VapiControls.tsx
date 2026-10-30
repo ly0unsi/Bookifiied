@@ -32,11 +32,35 @@ const VapiControls = ({ book }: { book: IBook }) => {
     if (limitError) toast.error(limitError);
   }, [limitError]);
 
+  const searchBook = (query: string) =>
+    fetch("/api/vapi/search-book", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          toolCallList: [
+            {
+              id: crypto.randomUUID(),
+              function: {
+                name: "search book",
+                arguments: {
+                  bookId: book._id,
+                  query,
+                  synthesize: true,
+                  includeCitations: true,
+                },
+              },
+            },
+          ],
+        },
+      }),
+    });
+
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = chatInput.trim();
     if (!query || isSending) return;
-
+    //Vapi answers
     if (isActive) {
       try {
         if (sendTextMessage(query)) {
@@ -55,29 +79,26 @@ const VapiControls = ({ book }: { book: IBook }) => {
     setIsSending(true);
 
     try {
-      const response = await fetch("/api/vapi/search-book", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: {
-            toolCallList: [
-              {
-                id: crypto.randomUUID(),
-                function: {
-                  name: "search book",
-                  arguments: { bookId: book._id, query, synthesize: true },
-                },
-              },
-            ],
-          },
-        }),
-      });
+      //Gemini answers
+      const response = await searchBook(query);
       const payload = await response.json();
-      const result = payload?.results?.[0]?.result;
+      const toolResult = payload?.results?.[0];
+      const result = toolResult?.result;
       if (!response.ok || typeof result !== "string") {
         throw new Error("Could not get an answer. Please try again.");
       }
-      appendMessage({ role: "assistant", content: result });
+      appendMessage({
+        role: "assistant",
+        content: result,
+        citations: Array.isArray(toolResult.citations)
+          ? toolResult.citations.filter(
+              (pageNumber: unknown): pageNumber is number =>
+                typeof pageNumber === "number" &&
+                Number.isInteger(pageNumber) &&
+                pageNumber > 0,
+            )
+          : [],
+      });
     } catch (error) {
       console.error("Book chat error", error);
       appendMessage({
@@ -127,6 +148,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
       <div className="vapi-transcript-wrapper w-full">
         <Transcript
           messages={messages}
+          pdfUrl={book.fileURL}
           currentMessage={currentMessage}
           currentUserMessage={currentUserMessage}
           isThinking={isSending}

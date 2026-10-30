@@ -84,6 +84,7 @@ export interface BookCardProps {
 export interface Messages {
     role: string;
     content: string;
+    citations?: number[];
 }
 
 export interface ShadowBoxProps {

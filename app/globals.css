@@ -720,7 +720,7 @@
   }
 
   .transcript-message-assistant {
-    @apply flex justify-start;
+    @apply flex flex-col items-start;
   }
 
   .transcript-bubble {

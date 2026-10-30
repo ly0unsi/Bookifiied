@@ -127,8 +127,7 @@ export async function parsePDFFile(file: File) {
     // Convert canvas to data URL
     const coverDataURL = canvas.toDataURL("image/png");
 
-    // Extract text from all pages
-    let fullText = "";
+    const segments: TextSegment[] = [];
 
     for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
       const page = await pdfDocument.getPage(pageNum);
@@ -137,11 +136,16 @@ export async function parsePDFFile(file: File) {
         .filter((item) => "str" in item)
         .map((item) => (item as { str: string }).str)
         .join(" ");
-      fullText += pageText + "\n";
-    }
+      const pageSegments = splitIntoSegments(pageText);
 
-    // Split text into segments for search
-    const segments = splitIntoSegments(fullText);
+      segments.push(
+        ...pageSegments.map((segment) => ({
+          ...segment,
+          segmentIndex: segments.length + segment.segmentIndex,
+          pageNumber: pageNum,
+        })),
+      );
+    }
 
     return {
       content: segments,
