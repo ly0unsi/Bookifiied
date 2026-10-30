@@ -145,7 +145,10 @@ async function runSearch(
     String(query).trim(),
     3,
   );
-  if (!search.success || !search.data?.length) {
+  if (!search.success) {
+    throw new Error(search.error || "Semantic book search failed.");
+  }
+  if (!search.data.length) {
     return { result: NO_MATCHES };
   }
 
@@ -165,7 +168,9 @@ async function runSearch(
         .map((segment) => segment.pageNumber)
         .filter(
           (pageNumber): pageNumber is number =>
-            Number.isInteger(pageNumber) && pageNumber > 0,
+            typeof pageNumber === "number" &&
+            Number.isInteger(pageNumber) &&
+            pageNumber > 0,
         ),
     ),
   ];

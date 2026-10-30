@@ -8,6 +8,17 @@ import BookSegment from "@/database/models/book-segment.model";
 import { PLANS } from "@/lib/subscription-constants";
 import { getPlanFromHas } from "@/lib/subscription-utils";
 import { auth } from "@clerk/nextjs/server";
+import { Types } from "mongoose";
+
+const BOOK_SEGMENT_VECTOR_INDEX = "book_segment_vector_index";
+
+type SemanticSegment = {
+  [key: string]: unknown;
+  content: string;
+  segmentIndex: number;
+  pageNumber?: number;
+  score: number;
+};
 
 export const getAllBooks = async () => {
   try {
@@ -162,18 +173,43 @@ export const searchBookSegments = async (
   bookId: string,
   query: string,
   limit: number,
+  clerkId?: string,
 ) => {
   try {
     await connectToDatabase();
 
-    const segments = await BookSegment.find(
-      { bookId, $text: { $search: query } },
-      { score: { $meta: "textScore" } },
-    )
-      .sort({ score: { $meta: "textScore" } })
-      .limit(limit)
-      .select({ content: 1, segmentIndex: 1, pageNumber: 1, _id: 0 })
-      .lean();
+    if (!Types.ObjectId.isValid(bookId)) {
+      return { success: false, data: [], error: "Invalid book ID." };
+    }
+
+    const requestedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 3;
+    const safeLimit = Math.max(1, Math.min(requestedLimit, 20));
+    const segments = await BookSegment.collection
+      .aggregate<SemanticSegment>([
+        {
+          $vectorSearch: {
+            index: BOOK_SEGMENT_VECTOR_INDEX,
+            path: "content",
+            query: { text: query },
+            numCandidates: Math.max(safeLimit * 20, 100),
+            limit: safeLimit,
+            filter: {
+              bookId: { $eq: new Types.ObjectId(bookId) },
+              ...(clerkId ? { clerkId: { $eq: clerkId } } : {}),
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            content: 1,
+            segmentIndex: 1,
+            pageNumber: 1,
+            score: { $meta: "vectorSearchScore" },
+          },
+        },
+      ])
+      .toArray();
 
     return { success: true, data: segments };
   } catch (e) {
@@ -202,22 +238,14 @@ export const getBookCitationPages = async (
 
     await connectToDatabase();
 
-    const segments = await BookSegment.find(
-      {
-        bookId,
-        clerkId: userId,
-        $text: { $search: query.trim() },
-      },
-      { score: { $meta: "textScore" } },
-    )
-      .sort({ score: { $meta: "textScore" } })
-      .limit(3)
-      .select({ pageNumber: 1, _id: 0 })
-      .lean();
+    const search = await searchBookSegments(bookId, query.trim(), 3, userId);
+    if (!search.success) {
+      throw new Error(search.error || "Semantic citation search failed.");
+    }
 
     const pages = [
       ...new Set(
-        segments
+        search.data
           .map((segment) => segment.pageNumber)
           .filter(
             (pageNumber): pageNumber is number =>

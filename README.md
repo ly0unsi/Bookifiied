@@ -16,6 +16,32 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Semantic book search
+
+Book segment retrieval uses MongoDB Atlas Vector Search automated embeddings.
+In Atlas, open the `bookified.booksegments` collection's Search tab and create
+or edit the `book_segment_vector_index` with this definition:
+
+```json
+{
+  "fields": [
+    {
+      "type": "autoEmbed",
+      "modality": "text",
+      "path": "content",
+      "model": "voyage-4"
+    },
+    { "type": "filter", "path": "bookId" },
+    { "type": "filter", "path": "clerkId" }
+  ]
+}
+```
+
+The auto-embedding index generates and manages embeddings for existing and new
+segment text. Wait for the index status to return to **Ready** after editing it.
+See the [MongoDB Vector Search index documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/)
+for details.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
