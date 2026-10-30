@@ -92,10 +92,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
             : [],
         });
       } catch (error) {
-        console.error(
-          "Could not get a book answer for the voice conversation",
-          error,
-        );
+        console.error("Could not get a book answer for the voice conversation", error);
         appendMessage({
           role: "assistant",
           content: "Could not get an answer. Please try again.",
@@ -178,13 +175,13 @@ const VapiControls = ({ book }: { book: IBook }) => {
         </div>
       </section>
       <div className="vapi-transcript-wrapper w-full">
-        {/* <Transcript
+        <Transcript
           messages={messages}
           pdfUrl={book.fileURL}
           currentMessage={currentMessage}
           currentUserMessage={currentUserMessage}
           isThinking={isSending || (isActive && status === "thinking")}
-        /> */}
+        />
         <div className="rounded-b-[14px] bg-[#f3e4c7] p-3 sm:p-4">
           <form
             onSubmit={sendMessage}
