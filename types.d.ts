@@ -82,6 +82,7 @@ export interface BookCardProps {
 }
 
 export interface Messages {
+    id?: string;
     role: string;
     content: string;
     citations?: number[];

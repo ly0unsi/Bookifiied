@@ -62,16 +62,45 @@ const VapiControls = ({ book }: { book: IBook }) => {
     if (!query || isSending) return;
     //Vapi answers
     if (isActive) {
+      setChatInput("");
+      setIsSending(true);
       try {
-        if (sendTextMessage(query)) {
-          setChatInput("");
+        const response = await searchBook(query);
+        const payload = await response.json();
+        const toolResult = payload?.results?.[0];
+        const result = toolResult?.result;
+        if (!response.ok || typeof result !== "string") {
+          throw new Error("Could not get an answer. Please try again.");
+        }
+
+        if (sendTextMessage(query, result)) {
           return;
         }
+
+        appendMessage({ role: "user", content: query });
+        appendMessage({
+          role: "assistant",
+          content: result,
+          citations: Array.isArray(toolResult.citations)
+            ? toolResult.citations.filter(
+                (pageNumber: unknown): pageNumber is number =>
+                  typeof pageNumber === "number" &&
+                  Number.isInteger(pageNumber) &&
+                  pageNumber > 0,
+              )
+            : [],
+        });
       } catch (error) {
-        console.error("Could not send text to Vapi", error);
-        toast.error("Could not send your message to the voice conversation.");
-        return;
+        console.error("Could not get a book answer for the voice conversation", error);
+        appendMessage({ role: "user", content: query });
+        appendMessage({
+          role: "assistant",
+          content: "Could not get an answer. Please try again.",
+        });
+      } finally {
+        setIsSending(false);
       }
+      return;
     }
 
     setChatInput("");

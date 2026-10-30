@@ -186,6 +186,59 @@ export const searchBookSegments = async (
   }
 };
 
+export const getBookCitationPages = async (
+  bookId: string,
+  query: string,
+): Promise<{ success: boolean; data: number[]; error?: string }> => {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { success: false, data: [], error: "Authentication required." };
+    }
+
+    if (!/^[\da-f]{24}$/i.test(bookId) || !query.trim()) {
+      return { success: false, data: [], error: "Invalid book or query." };
+    }
+
+    await connectToDatabase();
+
+    const segments = await BookSegment.find(
+      {
+        bookId,
+        clerkId: userId,
+        $text: { $search: query.trim() },
+      },
+      { score: { $meta: "textScore" } },
+    )
+      .sort({ score: { $meta: "textScore" } })
+      .limit(3)
+      .select({ pageNumber: 1, _id: 0 })
+      .lean();
+
+    const pages = [
+      ...new Set(
+        segments
+          .map((segment) => segment.pageNumber)
+          .filter(
+            (pageNumber): pageNumber is number =>
+              typeof pageNumber === "number" &&
+              Number.isInteger(pageNumber) &&
+              pageNumber > 0,
+          ),
+      ),
+    ];
+
+    return { success: true, data: pages };
+  } catch (error) {
+    console.error("Error fetching book citation pages", error);
+    return {
+      success: false,
+      data: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+};
+
 export const checkBookExists = async (title: string) => {
   try {
     await connectToDatabase();

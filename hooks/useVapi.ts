@@ -3,6 +3,7 @@ import {
   startVoiceSession,
 } from "@/lib/actions/session.actions";
 import { ASSISTANT_ID, DEFAULT_VOICE, VOICE_SETTINGS } from "@/lib/constants";
+import { getBookCitationPages } from "@/lib/actions/book.actions";
 import { IBook, Messages } from "@/types";
 import Vapi from "@vapi-ai/web";
 import { useAuth } from "@clerk/nextjs";
@@ -41,6 +42,16 @@ type VapiTranscriptEvent = {
   transcriptType: "partial" | "final";
   transcript: string;
 };
+
+type PendingCitationTurn = {
+  id: string;
+  answerMessageId?: string;
+  citationsLoaded?: boolean;
+  citations?: number[];
+};
+
+const isPageNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
 
 const isVapiTranscriptEvent = (
   message: unknown,
@@ -81,6 +92,7 @@ export const useVapi = (book: IBook) => {
   const isStoppingRef = useRef<boolean>(false);
   const closeSessionRef = useRef<(() => void) | null>(null);
   const elapsedSecondsRef = useRef(0);
+  const pendingCitationTurnsRef = useRef<PendingCitationTurn[]>([]);
 
   const bookRef = useLatestRef(book);
   const maxDurationSecondsRef = useRef<number | null>(null);
@@ -109,6 +121,7 @@ export const useVapi = (book: IBook) => {
       setStatus("idle");
       setCurrentMessage("");
       setCurrentUserMessage("");
+      pendingCitationTurnsRef.current = [];
 
       const sessionId = sessionIdRef.current;
       sessionIdRef.current = null;
@@ -139,7 +152,10 @@ export const useVapi = (book: IBook) => {
             void client
               .stop()
               .catch((error) =>
-                console.error("Error stopping voice session at time limit", error),
+                console.error(
+                  "Error stopping voice session at time limit",
+                  error,
+                ),
               );
           }
         }, TIMER_INTERVAL_MS);
@@ -159,6 +175,10 @@ export const useVapi = (book: IBook) => {
         | { type?: unknown; status?: unknown }
         | null
         | undefined;
+
+      if (event?.type === "tool-calls-result") {
+        console.log("Vapi tool-calls-result:", message);
+      }
 
       if (event?.type === "status-update" && event.status === "ended") {
         closeSession();
@@ -185,14 +205,42 @@ export const useVapi = (book: IBook) => {
         setStatus("thinking");
       }
 
+      const citationTurn =
+        role === "assistant"
+          ? pendingCitationTurnsRef.current.find(
+              (turn) => !turn.answerMessageId,
+            )
+          : undefined;
+      const answerMessageId = citationTurn ? crypto.randomUUID() : undefined;
+      if (citationTurn && answerMessageId) {
+        citationTurn.answerMessageId = answerMessageId;
+      }
+
+      const citations = citationTurn?.citations;
+
       setMessages((previous) => {
         const duplicate = previous.some(
           (item) => item.role === role && item.content === transcript,
         );
         return duplicate
           ? previous
-          : [...previous, { role, content: transcript }];
+          : [
+              ...previous,
+              {
+                role,
+                content: transcript,
+                ...(answerMessageId ? { id: answerMessageId } : {}),
+                ...(citations?.length ? { citations } : {}),
+              },
+            ];
       });
+
+      if (citationTurn && answerMessageId && citationTurn.citationsLoaded) {
+        pendingCitationTurnsRef.current =
+          pendingCitationTurnsRef.current.filter(
+            (turn) => turn !== citationTurn,
+          );
+      }
     };
 
     const handleCallStartFailed = (event: { error?: string }) => {
@@ -340,11 +388,61 @@ export const useVapi = (book: IBook) => {
   const sendTextMessage = (content: string) => {
     if (!isActive) return false;
 
-    getVapi().send({
-      type: "add-message",
-      message: { role: "user", content },
-    });
+    const citationTurn: PendingCitationTurn = { id: crypto.randomUUID() };
+    pendingCitationTurnsRef.current.push(citationTurn);
+
+    try {
+      getVapi().send({
+        type: "add-message",
+        message: { role: "user", content },
+      });
+    } catch (error) {
+      pendingCitationTurnsRef.current = pendingCitationTurnsRef.current.filter(
+        (turn) => turn !== citationTurn,
+      );
+      throw error;
+    }
+
     setMessages((previous) => [...previous, { role: "user", content }]);
+
+    void (async () => {
+      try {
+        const result = await getBookCitationPages(book._id, content);
+        if (!result.success) {
+          throw new Error(result.error || "Citation lookup failed.");
+        }
+
+        citationTurn.citations = result.data.filter(isPageNumber);
+        citationTurn.citationsLoaded = true;
+
+        if (citationTurn.answerMessageId) {
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === citationTurn.answerMessageId
+                ? { ...message, citations: citationTurn.citations }
+                : message,
+            ),
+          );
+          pendingCitationTurnsRef.current =
+            pendingCitationTurnsRef.current.filter(
+              (turn) => turn !== citationTurn,
+            );
+        }
+      } catch (error) {
+        console.error(
+          "Could not retrieve citations for Vapi text message",
+          error,
+        );
+        citationTurn.citationsLoaded = true;
+        if (citationTurn.answerMessageId) {
+          pendingCitationTurnsRef.current =
+            pendingCitationTurnsRef.current.filter(
+              (turn) => turn !== citationTurn,
+            );
+        }
+      }
+    })();
+
     return true;
   };
   const appendMessage = (message: Messages) => {
