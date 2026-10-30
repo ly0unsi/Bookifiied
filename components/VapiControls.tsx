@@ -79,7 +79,6 @@ const VapiControls = ({ book }: { book: IBook }) => {
         }
 
         appendMessage({ role: "user", content: query });
-        console.log(Array.isArray(toolResult.citations));
         appendMessage({
           role: "assistant",
           content: result,
@@ -93,10 +92,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
             : [],
         });
       } catch (error) {
-        console.error(
-          "Could not get a book answer for the voice conversation",
-          error,
-        );
+        console.error("Could not get a book answer for the voice conversation", error);
         appendMessage({
           role: "assistant",
           content: "Could not get an answer. Please try again.",
