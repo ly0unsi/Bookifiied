@@ -63,6 +63,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
     //Vapi answers
     if (isActive) {
       setChatInput("");
+      appendMessage({ role: "user", content: query });
       setIsSending(true);
       try {
         const response = await searchBook(query);
@@ -73,7 +74,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
           throw new Error("Could not get an answer. Please try again.");
         }
 
-        if (sendTextMessage(query, result)) {
+        if (sendTextMessage(query)) {
           return;
         }
 
@@ -92,7 +93,6 @@ const VapiControls = ({ book }: { book: IBook }) => {
         });
       } catch (error) {
         console.error("Could not get a book answer for the voice conversation", error);
-        appendMessage({ role: "user", content: query });
         appendMessage({
           role: "assistant",
           content: "Could not get an answer. Please try again.",
@@ -180,7 +180,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
           pdfUrl={book.fileURL}
           currentMessage={currentMessage}
           currentUserMessage={currentUserMessage}
-          isThinking={isSending}
+          isThinking={isSending || (isActive && status === "thinking")}
         />
         <div className="rounded-b-[14px] bg-[#f3e4c7] p-3 sm:p-4">
           <form

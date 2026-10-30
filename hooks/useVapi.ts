@@ -10,6 +10,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useRef, useState } from "react";
 import { getVoice } from "@/lib/utils";
 import { log } from "console";
+import { toast } from "sonner";
 
 const VAPI_API_KEY = process.env.NEXT_PUBLIC_VAPI_API_KEY;
 const TIMER_INTERVAL_MS = 1000;
@@ -168,7 +169,10 @@ export const useVapi = (book: IBook) => {
     };
 
     const handleSpeechStart = () => setStatus("speaking");
-    const handleSpeechEnd = () => setStatus("listening");
+    const handleSpeechEnd = () => {
+      setStatus("listening");
+      toast.info("Assistant speech ended.");
+    };
 
     const handleMessage = (message: unknown) => {
       const event = message as
@@ -403,7 +407,12 @@ export const useVapi = (book: IBook) => {
       throw error;
     }
 
-    setMessages((previous) => [...previous, { role: "user", content }]);
+    setMessages((previous) => {
+      const lastMessage = previous[previous.length - 1];
+      return lastMessage?.role === "user" && lastMessage.content === content
+        ? previous
+        : [...previous, { role: "user", content }];
+    });
 
     void (async () => {
       try {
