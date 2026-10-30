@@ -79,6 +79,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
         }
 
         appendMessage({ role: "user", content: query });
+
         appendMessage({
           role: "assistant",
           content: result,
@@ -92,7 +93,10 @@ const VapiControls = ({ book }: { book: IBook }) => {
             : [],
         });
       } catch (error) {
-        console.error("Could not get a book answer for the voice conversation", error);
+        console.error(
+          "Could not get a book answer for the voice conversation",
+          error,
+        );
         appendMessage({
           role: "assistant",
           content: "Could not get an answer. Please try again.",
@@ -116,6 +120,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
       if (!response.ok || typeof result !== "string") {
         throw new Error("Could not get an answer. Please try again.");
       }
+      console.log("ciatations", Array.isArray(toolResult.citations));
       appendMessage({
         role: "assistant",
         content: result,
