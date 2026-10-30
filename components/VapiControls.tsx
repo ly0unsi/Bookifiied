@@ -120,7 +120,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
       if (!response.ok || typeof result !== "string") {
         throw new Error("Could not get an answer. Please try again.");
       }
-      console.log("ciatations", Array.isArray(toolResult.citations));
+      console.log("ciatations", toolResult.citations);
       appendMessage({
         role: "assistant",
         content: result,
