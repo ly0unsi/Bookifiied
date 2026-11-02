@@ -114,6 +114,14 @@ const VapiControls = ({ book }: { book: IBook }) => {
     setIsSending(true);
 
     let partialAnswer = "";
+    const revealText = async (text: string) => {
+      for (const character of text) {
+        partialAnswer += character;
+        setStreamingMessage(partialAnswer);
+        await new Promise((resolve) => setTimeout(resolve, 18));
+      }
+    };
+
     try {
       //Gemini answers
       const response = await searchBook(query, true);
@@ -130,7 +138,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
       let answer = "";
       let citations: number[] = [];
 
-      const readEvent = (event: string) => {
+      const readEvent = async (event: string) => {
         const data = event
           .split(/\r?\n/)
           .filter((line) => line.startsWith("data:"))
@@ -148,13 +156,11 @@ const VapiControls = ({ book }: { book: IBook }) => {
 
         if (typeof payload.text === "string") {
           answer += payload.text;
-          partialAnswer = answer;
-          setStreamingMessage(answer);
+          await revealText(payload.text);
         }
         if (typeof payload.fallbackText === "string") {
           answer = payload.fallbackText;
-          partialAnswer = answer;
-          setStreamingMessage(answer);
+          await revealText(payload.fallbackText);
         }
         if (Array.isArray(payload.citations)) {
           citations = payload.citations.filter(
@@ -172,10 +178,10 @@ const VapiControls = ({ book }: { book: IBook }) => {
           buffer += decoder.decode(value, { stream: !done });
           const events = buffer.split(/\r?\n\r?\n/);
           buffer = events.pop() ?? "";
-          for (const event of events) readEvent(event);
+          for (const event of events) await readEvent(event);
           if (done) break;
         }
-        if (buffer.trim()) readEvent(buffer);
+        if (buffer.trim()) await readEvent(buffer);
       } finally {
         reader.releaseLock();
       }
