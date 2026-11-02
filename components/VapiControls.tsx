@@ -114,11 +114,23 @@ const VapiControls = ({ book }: { book: IBook }) => {
     setIsSending(true);
 
     let partialAnswer = "";
-    const revealText = async (text: string) => {
-      for (const character of text) {
-        partialAnswer += character;
+    let pendingText = "";
+    const revealText = async (text: string, flush = false) => {
+      pendingText += text;
+
+      while (pendingText.length > 0) {
+        const whitespaceIndex = pendingText.search(/\s/);
+        if (whitespaceIndex < 0 && !flush) break;
+
+        const endIndex =
+          whitespaceIndex < 0 ? pendingText.length : whitespaceIndex + 1;
+        const nextWord = pendingText.slice(0, endIndex);
+        pendingText = pendingText.slice(endIndex);
+        partialAnswer += nextWord;
         setStreamingMessage(partialAnswer);
-        await new Promise((resolve) => setTimeout(resolve, 18));
+
+        const pause = /[.!?]["')\]]?\s*$/.test(nextWord) ? 110 : 28;
+        await new Promise((resolve) => setTimeout(resolve, pause));
       }
     };
 
@@ -186,6 +198,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
         reader.releaseLock();
       }
 
+      await revealText("", true);
       appendMessage({
         role: "assistant",
         content: answer,
