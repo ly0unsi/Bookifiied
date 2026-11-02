@@ -6,6 +6,7 @@ const NO_MATCHES = "no information found about this topic";
 async function generateAnswer(
   query: string,
   passages: string,
+  onChunk?: (text: string) => void,
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -13,7 +14,7 @@ async function generateAnswer(
   }
 
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${onChunk ? "streamGenerateContent?alt=sse" : "generateContent"}`;
   const instructions = `You are Bookified, a friendly and thoughtful reading companion. Help the reader explore the book through natural conversation.
 
 Use only the supplied book passages for factual claims. Answer the reader's question directly, in clear and conversational language. Keep simple answers brief; give more detail when the question calls for it.
@@ -84,14 +85,68 @@ Distinguish what the passages state from your interpretation. Avoid generic fill
     throw new Error("AI answer generation failed.");
   }
 
-  const payload = await response.json();
-  const answer = payload.candidates
-    ?.flatMap(
-      (candidate: { content?: { parts?: { text?: string }[] } }) =>
-        candidate.content?.parts ?? [],
-    )
-    .map((part: { text?: string }) => part.text ?? "")
-    .join("");
+  if (onChunk && !response.body) {
+    throw new Error("Gemini returned an empty response stream.");
+  }
+
+  let answer = "";
+  if (onChunk && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const readEvent = (event: string) => {
+      const data = event
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!data || data === "[DONE]") return;
+
+      const payload = JSON.parse(data) as {
+        candidates?: {
+          content?: { parts?: { text?: string }[] };
+        }[];
+        error?: { message?: string };
+      };
+      if (payload.error) {
+        throw new Error(payload.error.message || "Gemini streaming failed.");
+      }
+
+      const text =
+        payload.candidates
+          ?.flatMap((candidate) => candidate.content?.parts ?? [])
+          .map((part) => part.text ?? "")
+          .join("") ?? "";
+      if (text) {
+        answer += text;
+        onChunk(text);
+      }
+    };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() ?? "";
+        for (const event of events) readEvent(event);
+        if (done) break;
+      }
+      if (buffer.trim()) readEvent(buffer);
+    } finally {
+      reader.releaseLock();
+    }
+  } else {
+    const payload = await response.json();
+    answer = payload.candidates
+      ?.flatMap(
+        (candidate: { content?: { parts?: { text?: string }[] } }) =>
+          candidate.content?.parts ?? [],
+      )
+      .map((part: { text?: string }) => part.text ?? "")
+      .join("");
+  }
 
   if (typeof answer !== "string" || !answer.trim()) {
     throw new Error("AI returned an empty answer.");
@@ -126,6 +181,7 @@ function isSearchBookCall(name: unknown): boolean {
 
 async function runSearch(
   parameters: unknown,
+  onChunk?: (text: string) => void,
 ): Promise<{ result: string; citations?: number[] }> {
   const args = parseArguments(parameters);
   const bookId = args.bookId ?? args.book_id;
@@ -176,7 +232,7 @@ async function runSearch(
   ];
   const result =
     args.synthesize === true
-      ? await generateAnswer(String(query).trim(), passages)
+      ? await generateAnswer(String(query).trim(), passages, onChunk)
       : passages;
 
   return {
@@ -190,6 +246,78 @@ export async function POST(request: Request) {
     const body = await request.json();
     const message = body?.message;
     const functionCall = message?.functionCall ?? body?.functionCall;
+    const toolCalls =
+      message?.toolCallList ??
+      message?.toolCalls ??
+      body?.toolCallList ??
+      body?.toolCalls;
+
+    if (body?.stream === true) {
+      const toolCall = functionCall ?? (Array.isArray(toolCalls) ? toolCalls[0] : null);
+      const fn = toolCall?.function ?? toolCall;
+      const name = functionCall
+        ? functionCall.name ?? functionCall.function?.name
+        : fn?.name;
+      const parameters = functionCall
+        ? functionCall.parameters ?? functionCall.arguments
+        : fn?.parameters ?? fn?.arguments;
+
+      if (!isSearchBookCall(name)) {
+        return new Response(`Unknown function: ${String(name ?? "")}`, {
+          status: 400,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      if (!functionCall && (!Array.isArray(toolCalls) || toolCalls.length !== 1)) {
+        return new Response("Expected exactly one search tool call.", {
+          status: 400,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let hasStreamedText = false;
+          try {
+            const result = await runSearch(parameters, (text) => {
+              hasStreamedText = true;
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ text })}\n\n`),
+              );
+            });
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  done: true,
+                  citations: result.citations ?? [],
+                  ...(!hasStreamedText ? { fallbackText: result.result } : {}),
+                })}\n\n`,
+              ),
+            );
+            controller.close();
+          } catch (error) {
+            console.error("Gemini streamed book search failed:", error);
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  error: "Could not generate an answer. Please try again.",
+                })}\n\n`,
+              ),
+            );
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
 
     if (functionCall) {
       const name = functionCall.name ?? functionCall.function?.name;
@@ -204,11 +332,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const toolCalls =
-      message?.toolCallList ??
-      message?.toolCalls ??
-      body?.toolCallList ??
-      body?.toolCalls;
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
       return NextResponse.json({
         results: [{ result: "No tool calls found." }],

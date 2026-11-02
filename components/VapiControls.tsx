@@ -25,6 +25,7 @@ const VapiControls = ({ book }: { book: IBook }) => {
   } = useVapi(book);
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState("");
   const durationLabel = `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`;
   const maxDurationLabel = `${maxDurationMinutes}:00`;
 
@@ -32,11 +33,12 @@ const VapiControls = ({ book }: { book: IBook }) => {
     if (limitError) toast.error(limitError);
   }, [limitError]);
 
-  const searchBook = (query: string) =>
+  const searchBook = (query: string, stream = false) =>
     fetch("/api/vapi/search-book", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        ...(stream ? { stream: true } : {}),
         message: {
           toolCallList: [
             {
@@ -111,35 +113,87 @@ const VapiControls = ({ book }: { book: IBook }) => {
     appendMessage({ role: "user", content: query });
     setIsSending(true);
 
+    let partialAnswer = "";
     try {
       //Gemini answers
-      const response = await searchBook(query);
-      const payload = await response.json();
-      const toolResult = payload?.results?.[0];
-      const result = toolResult?.result;
-      if (!response.ok || typeof result !== "string") {
+      const response = await searchBook(query, true);
+      if (!response.ok) {
         throw new Error("Could not get an answer. Please try again.");
       }
-      console.log("ciatations", toolResult.citations);
+      if (!response.body) {
+        throw new Error("The answer stream was unavailable.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let answer = "";
+      let citations: number[] = [];
+
+      const readEvent = (event: string) => {
+        const data = event
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (!data) return;
+
+        const payload = JSON.parse(data) as {
+          text?: string;
+          fallbackText?: string;
+          citations?: unknown;
+          error?: string;
+        };
+        if (payload.error) throw new Error(payload.error);
+
+        if (typeof payload.text === "string") {
+          answer += payload.text;
+          partialAnswer = answer;
+          setStreamingMessage(answer);
+        }
+        if (typeof payload.fallbackText === "string") {
+          answer = payload.fallbackText;
+          partialAnswer = answer;
+          setStreamingMessage(answer);
+        }
+        if (Array.isArray(payload.citations)) {
+          citations = payload.citations.filter(
+            (pageNumber): pageNumber is number =>
+              typeof pageNumber === "number" &&
+              Number.isInteger(pageNumber) &&
+              pageNumber > 0,
+          );
+        }
+      };
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const events = buffer.split(/\r?\n\r?\n/);
+          buffer = events.pop() ?? "";
+          for (const event of events) readEvent(event);
+          if (done) break;
+        }
+        if (buffer.trim()) readEvent(buffer);
+      } finally {
+        reader.releaseLock();
+      }
+
       appendMessage({
         role: "assistant",
-        content: result,
-        citations: Array.isArray(toolResult.citations)
-          ? toolResult.citations.filter(
-              (pageNumber: unknown): pageNumber is number =>
-                typeof pageNumber === "number" &&
-                Number.isInteger(pageNumber) &&
-                pageNumber > 0,
-            )
-          : [],
+        content: answer,
+        citations,
       });
     } catch (error) {
       console.error("Book chat error", error);
       appendMessage({
         role: "assistant",
-        content: "Could not get an answer. Please try again.",
+        content:
+          partialAnswer || "Could not get an answer. Please try again.",
       });
     } finally {
+      setStreamingMessage("");
       setIsSending(false);
     }
   };
@@ -183,9 +237,12 @@ const VapiControls = ({ book }: { book: IBook }) => {
         <Transcript
           messages={messages}
           pdfUrl={book.fileURL}
-          currentMessage={currentMessage}
+          currentMessage={currentMessage || streamingMessage}
           currentUserMessage={currentUserMessage}
-          isThinking={isSending || (isActive && status === "thinking")}
+          isThinking={
+            (isSending && !streamingMessage && !isActive) ||
+            (isActive && status === "thinking")
+          }
         />
         <div className="rounded-b-[14px] bg-[#f3e4c7] p-3 sm:p-4">
           <form
