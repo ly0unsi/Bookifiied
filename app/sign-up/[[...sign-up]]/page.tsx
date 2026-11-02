@@ -4,7 +4,9 @@ import { Suspense } from "react";
 export default function SignUpPage() {
   return (
     <Suspense>
-      <SignUp />
+      <main className="auth-wrapper">
+        <SignUp />
+      </main>
     </Suspense>
   );
 }
