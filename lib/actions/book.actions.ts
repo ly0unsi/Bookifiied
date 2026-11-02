@@ -11,9 +11,18 @@ import { auth } from "@clerk/nextjs/server";
 import { Types } from "mongoose";
 
 const BOOK_SEGMENT_VECTOR_INDEX = "book_segment_vector_index";
+const RECIPROCAL_RANK_CONSTANT = 60;
 
 type SemanticSegment = {
-  [key: string]: unknown;
+  content: string;
+  segmentIndex: number;
+  pageNumber?: number;
+  score: number;
+  vectorScore?: number;
+  keywordScore?: number;
+};
+
+type KeywordSegment = {
   content: string;
   segmentIndex: number;
   pageNumber?: number;
@@ -181,43 +190,103 @@ export const searchBookSegments = async (
     if (!Types.ObjectId.isValid(bookId)) {
       return { success: false, data: [], error: "Invalid book ID." };
     }
+    if (!query.trim()) {
+      return { success: false, data: [], error: "Search query is required." };
+    }
 
     const requestedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 3;
     const safeLimit = Math.max(1, Math.min(requestedLimit, 20));
-    console.info("Running book segment vector search", {
-      index: BOOK_SEGMENT_VECTOR_INDEX,
+    const candidateLimit = Math.max(safeLimit * 3, 10);
+    const bookObjectId = new Types.ObjectId(bookId);
+    const searchFilter = {
+      bookId: bookObjectId,
+      ...(clerkId ? { clerkId } : {}),
+    };
+
+    console.info("Running hybrid book segment search", {
+      vectorIndex: BOOK_SEGMENT_VECTOR_INDEX,
       limit: safeLimit,
+      candidateLimit,
       hasClerkFilter: Boolean(clerkId),
     });
 
-    const segments = await BookSegment.collection
-      .aggregate<SemanticSegment>([
-        {
-          $vectorSearch: {
-            index: BOOK_SEGMENT_VECTOR_INDEX,
-            path: "content",
-            query: { text: query },
-            numCandidates: Math.max(safeLimit * 20, 100),
-            limit: safeLimit,
-            filter: {
-              bookId: { $eq: new Types.ObjectId(bookId) },
-              ...(clerkId ? { clerkId: { $eq: clerkId } } : {}),
+    const [vectorCandidates, keywordCandidates] = await Promise.all([
+      BookSegment.collection
+        .aggregate<SemanticSegment>([
+          {
+            $vectorSearch: {
+              index: BOOK_SEGMENT_VECTOR_INDEX,
+              path: "content",
+              query: { text: query.trim() },
+              numCandidates: Math.max(candidateLimit * 20, 100),
+              limit: candidateLimit,
+              filter: {
+                bookId: { $eq: bookObjectId },
+                ...(clerkId ? { clerkId: { $eq: clerkId } } : {}),
+              },
             },
           },
-        },
-        {
-          $project: {
-            _id: 0,
-            content: 1,
-            segmentIndex: 1,
-            pageNumber: 1,
-            score: { $meta: "vectorSearchScore" },
+          {
+            $project: {
+              _id: 0,
+              content: 1,
+              segmentIndex: 1,
+              pageNumber: 1,
+              score: { $meta: "vectorSearchScore" },
+            },
           },
-        },
-      ])
-      .toArray();
+        ])
+        .toArray(),
+      BookSegment.collection
+        .find<KeywordSegment>(
+          {
+            ...searchFilter,
+            $text: { $search: query.trim() },
+          },
+          {
+            projection: {
+              _id: 0,
+              content: 1,
+              segmentIndex: 1,
+              pageNumber: 1,
+              score: { $meta: "textScore" },
+            },
+          },
+        )
+        .sort({ score: { $meta: "textScore" } })
+        .limit(candidateLimit)
+        .toArray(),
+    ]);
 
-    console.info("Book segment vector search completed", {
+    const rankedSegments = new Map<number, SemanticSegment>();
+    vectorCandidates.forEach((segment, rank) => {
+      const reciprocalRank = 1 / (RECIPROCAL_RANK_CONSTANT + rank + 1);
+      rankedSegments.set(segment.segmentIndex, {
+        ...segment,
+        score: reciprocalRank,
+        vectorScore: segment.score,
+      });
+    });
+    keywordCandidates.forEach((segment, rank) => {
+      const reciprocalRank = 1 / (RECIPROCAL_RANK_CONSTANT + rank + 1);
+      const existing = rankedSegments.get(segment.segmentIndex);
+      rankedSegments.set(segment.segmentIndex, {
+        ...segment,
+        score: (existing?.score ?? 0) + reciprocalRank,
+        ...(existing?.vectorScore !== undefined
+          ? { vectorScore: existing.vectorScore }
+          : {}),
+        keywordScore: segment.score,
+      });
+    });
+
+    const segments = [...rankedSegments.values()]
+      .sort((left, right) => right.score - left.score)
+      .slice(0, safeLimit);
+
+    console.info("Hybrid book segment search completed", {
+      vectorResultCount: vectorCandidates.length,
+      keywordResultCount: keywordCandidates.length,
       resultCount: segments.length,
       results: segments.map(({ segmentIndex, score }) => ({
         segmentIndex,

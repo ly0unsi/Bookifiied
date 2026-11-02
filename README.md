@@ -16,9 +16,12 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Semantic book search
+## Hybrid book search
 
-Book segment retrieval uses MongoDB Atlas Vector Search automated embeddings.
+Book segment retrieval combines semantic vector search with MongoDB text search.
+The results are merged using reciprocal-rank fusion, which helps surface both
+conceptually related passages and exact keyword matches.
+
 In Atlas, open the `bookified.booksegments` collection's Search tab and create
 or edit the `book_segment_vector_index` with this definition:
 
@@ -41,6 +44,15 @@ The auto-embedding index generates and manages embeddings for existing and new
 segment text. Wait for the index status to return to **Ready** after editing it.
 See the [MongoDB Vector Search index documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/)
 for details.
+
+Keyword retrieval uses the regular MongoDB text index declared by
+`database/models/book-segment.model.ts` on `{ bookId: 1, content: "text" }`.
+Verify it exists in the `booksegments` collection with `db.booksegments.getIndexes()`.
+If it is missing, create it with:
+
+```javascript
+db.booksegments.createIndex({ bookId: 1, content: "text" })
+```
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
