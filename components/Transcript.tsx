@@ -135,7 +135,7 @@ const Transcript = ({
                           className="inline-flex items-center rounded-full border border-[#663820]/20 bg-[#fff6e5] px-2.5 py-1 text-xs font-semibold text-[#663820] transition hover:bg-[#f3e4c7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#663820]"
                           aria-label={`Open PDF to page ${pageNumber}`}
                         >
-                          page {pageNumber}
+                          pager {pageNumber}
                         </a>
                       );
                     })}
