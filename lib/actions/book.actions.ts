@@ -184,6 +184,12 @@ export const searchBookSegments = async (
 
     const requestedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 3;
     const safeLimit = Math.max(1, Math.min(requestedLimit, 20));
+    console.info("Running book segment vector search", {
+      index: BOOK_SEGMENT_VECTOR_INDEX,
+      limit: safeLimit,
+      hasClerkFilter: Boolean(clerkId),
+    });
+
     const segments = await BookSegment.collection
       .aggregate<SemanticSegment>([
         {
@@ -210,6 +216,14 @@ export const searchBookSegments = async (
         },
       ])
       .toArray();
+
+    console.info("Book segment vector search completed", {
+      resultCount: segments.length,
+      results: segments.map(({ segmentIndex, score }) => ({
+        segmentIndex,
+        score,
+      })),
+    });
 
     return { success: true, data: segments };
   } catch (e) {
